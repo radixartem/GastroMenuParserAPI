@@ -1,24 +1,25 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-WORKDIR /app
 
-# Copy csproj and restore
-COPY src/GastroLeinefeldeAPI/GastroLeinefeldeAPI.csproj src/GastroLeinefeldeAPI/
-RUN dotnet restore src/GastroLeinefeldeAPI/GastroLeinefeldeAPI.csproj
+WORKDIR /src
 
-# Copy everything else and build
+COPY src/GastroLeinefeldeAPI/GastroLeinefeldeAPI.csproj GastroLeinefeldeAPI/
+COPY src/GastroLeinefeldeAPI.Tests/GastroLeinefeldeAPI.Tests.csproj GastroLeinefeldeAPI.Tests/
+
+RUN dotnet restore GastroLeinefeldeAPI/GastroLeinefeldeAPI.csproj
+
 COPY src/ .
-WORKDIR /app/src/GastroLeinefeldeAPI
-RUN dotnet publish -c Release -o out
 
-# Runtime
+WORKDIR /src/GastroLeinefeldeAPI
+
+RUN dotnet publish \
+    -c Release \
+    -o /app/publish \
+    --no-restore
+
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
+
 WORKDIR /app
-COPY --from=build /app/src/GastroLeinefeldeAPI/out .
 
-# Environment variables
-ENV ASPNETCORE_ENVIRONMENT=Production
-
-EXPOSE 80
-EXPOSE 443
+COPY --from=build /app/publish .
 
 ENTRYPOINT ["dotnet", "GastroLeinefeldeAPI.dll"]

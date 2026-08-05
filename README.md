@@ -31,6 +31,16 @@ docker-compose up -d
 ### Lokale Entwicklung
 
 ```bash
+# 0. Pakete installieren
+dotnet add package Microsoft.EntityFrameworkCore
+dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL
+dotnet add package Microsoft.EntityFrameworkCore.Tools
+dotnet add package Microsoft.EntityFrameworkCore.Design
+dotnet add package HtmlAgilityPack
+dotnet add package Serilog.AspNetCore
+dotnet add package Swashbuckle.AspNetCore
+
+
 # 1. In das Projektverzeichnis wechseln
 cd src/GastroLeinefeldeAPI
 

@@ -1,0 +1,58 @@
+services:
+
+  api:
+
+    build:
+      context: .
+      dockerfile: src/GastroLeinefeldeAPI/Dockerfile.dev
+
+    container_name: gastro-api-dev
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Database=gastro_menu;Username=postgres;Password=postgres
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - ./src:/src
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - gastro-network
+
+  postgres:
+
+    image: postgres:16-alpine
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: gastro_menu
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U postgres -d gastro_menu"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+    networks:
+      - gastro-network
+
+volumes:
+  postgres_data:
+
+networks:
+  gastro-network:
