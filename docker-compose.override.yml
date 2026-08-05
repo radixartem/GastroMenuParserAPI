@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    volumes:
+      - ./src/GastroLeinefeldeAPI:/app/src/GastroLeinefeldeAPI
+    command: dotnet watch run --no-launch-profile
