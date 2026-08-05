@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build:
@@ -13,8 +11,11 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Database=gastro_menu;Username=postgres;Password=postgres
+    
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+
     volumes:
       - ./logs:/app/logs
     networks:
@@ -31,11 +32,14 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gastro_menu"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 20
+      start_period: 10s
+
     networks:
       - gastro-network
 
