@@ -137,7 +137,6 @@ Die `docker-compose.yml` startet drei Container:
 |---------|--------------|------|
 | **`api`** | ASP.NET Core API | `8080` |
 | **`postgres`** | PostgreSQL-Datenbank | `5432` |
-| **`pgadmin`** | Webinterface für die Datenbank | `5050` |
 
 Alle Services sind über ein internes Netzwerk verbunden.
 
