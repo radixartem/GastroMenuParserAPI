@@ -11,7 +11,7 @@ builder.Services.AddSwaggerGen();
 
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? "Host=postgres;Database=gastro_menu;Username=postgres;Password=postgres";
+    ?? "Host=localhost;Database=gastro_menu;Username=postgres;Password=postgres";
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
