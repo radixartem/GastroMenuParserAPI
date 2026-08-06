@@ -1,3 +1,4 @@
+```md
 # 🍽️ Gastro Leinefelde Menu API
 
 Eine REST-API zum automatischen Abrufen, Parsen und Speichern der täglichen Speiseangebote von [essen-auf-raedern-eichsfeld.de](https://essen-auf-raedern-eichsfeld.de/tagesangebot). Die Anwendung ist in ASP.NET Core 9 geschrieben und verwendet PostgreSQL als Datenbank.
@@ -39,7 +40,6 @@ dotnet add package Microsoft.EntityFrameworkCore.Design
 dotnet add package HtmlAgilityPack
 dotnet add package Serilog.AspNetCore
 dotnet add package Swashbuckle.AspNetCore
-
 
 # 1. In das Projektverzeichnis wechseln
 cd src/GastroLeinefeldeAPI
@@ -129,7 +129,7 @@ Die gesamte Anwendung inklusive Datenbank wird über `docker-compose.yml` bereit
 
 ---
 
-## 📦 Docker Compose Services
+## 📦 Docker Compose Services (Entwicklung)
 
 Die `docker-compose.yml` startet drei Container:
 
@@ -137,6 +137,7 @@ Die `docker-compose.yml` startet drei Container:
 |---------|--------------|------|
 | **`api`** | ASP.NET Core API | `8080` |
 | **`postgres`** | PostgreSQL-Datenbank | `5432` |
+| **`pgadmin`** | pgAdmin-Webinterface (optional) | `5050` |
 
 Alle Services sind über ein internes Netzwerk verbunden.
 
@@ -187,16 +188,310 @@ Die wichtigsten Einstellungen können über Umgebungsvariablen oder `appsettings
 
 In Docker können diese Werte über die `environment`-Sektion in der `docker-compose.yml` überschrieben werden.
 
+> **Hinweis:** Wenn die Anwendung keine Verbindung zur Datenbank herstellen kann, muss man ein Benutzerpasswort in der Datenbank festlegen. Z.B.: `ALTER USER postgres PASSWORD 'postgres';`
 
-!!!  Wenn die Anwendung keine Verbindung zur Datenbank herstellen kann, 
-     muss man ein Benutzerpasswort in der Datenbank festlegen. Z.b.: ALTER USER postgres PASSWORD 'postgres';
+---
 
-Test
+## 🚀 Produktions-Deployment
+
+Dieser Abschnitt beschreibt die vollständige Produktionsumgebung mit **Caddy** als Reverse‑Proxy (automatisches HTTPS) und automatisiertem Deployment via **GitHub Actions**.
+
+### Serveranforderungen
+
+* Ubuntu 24.04+
+* Docker Engine & Docker Compose Plugin
+* Git
+* Eine Domain (z.B. `gastro.example.com`)
+
+Installiere Docker wie folgt:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+
+### Repository klonen
+
+```bash
+cd /opt
+
+git clone https://github.com/<username>/GastroMenuParser.git gastro-api
+
+cd gastro-api
+```
+
+### Anwendung starten
+
+```bash
+docker compose up -d --build
+```
+
+Nach dem Start ist die API erreichbar unter:
+
+```
+https://gastro.example.com
+```
+
+Swagger UI:
+
+```
+https://gastro.example.com/swagger
+```
+
+Health‑Check:
+
+```
+https://gastro.example.com/health
+```
+
+---
+
+### Docker Services (Production)
+
+Die Produktionsumgebung besteht aus drei Containern:
+
+| Service  | Beschreibung                                       |
+| -------- | -------------------------------------------------- |
+| api      | ASP.NET Core API                                   |
+| postgres | PostgreSQL Datenbank                               |
+| caddy    | Reverse‑Proxy + automatisches HTTPS (Let's Encrypt) |
+
+Netzwerk:
+
+```
+gastro-network
+```
+
+Volumes:
+
+```
+postgres_data
+caddy_data
+caddy_config
+```
+
+---
+
+### Umgebungsvariablen
+
+Die wichtigsten Variablen werden in der `docker-compose.yml` gesetzt:
+
+```yaml
+environment:
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: http://+:8080
+
+  ConnectionStrings__DefaultConnection: >
+    Host=postgres;
+    Database=gastro_menu;
+    Username=postgres;
+    Password=postgres
+```
+
+---
+
+### Automatisches HTTPS
+
+Caddy übernimmt automatisch:
+
+* Beantragung von Let's Encrypt‑Zertifikaten
+* Verlängerung der Zertifikate
+* Umleitung von HTTP auf HTTPS
+
+Beispiel‑`Caddyfile`:
+
+```caddy
+gastro.example.com {
+
+    encode gzip zstd
+
+    reverse_proxy api:8080
+
+    log {
+        output stdout
+        format console
+    }
+}
+```
+
+Manuelles Zertifikatsmanagement ist nicht erforderlich.
+
+---
+
+### CI/CD – Automatisiertes Deployment
+
+Die Auslieferung erfolgt vollautomatisch über **GitHub Actions**.
+
+Ablauf:
+
+```
+Entwickler
+      │
+      ▼
+git push origin main
+      │
+      ▼
+GitHub Actions
+      │
+      ▼
+SSH
+      │
+      ▼
+Server
+      │
+      ▼
+git pull
+docker compose build
+docker compose up -d
+```
+
+#### GitHub Secrets
+
+Repository → Settings → Secrets → Actions
+
+Folgende Secrets müssen angelegt werden:
+
+| Secret         | Beschreibung          |
+| -------------- | --------------------- |
+| SERVER_HOST    | Server‑IP             |
+| SERVER_USER    | SSH‑Benutzername      |
+| SERVER_SSH_KEY | Privater SSH‑Schlüssel |
+
+#### Deployment‑Workflow
+
+Beispiel für `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: appleboy/ssh-action@v1
+
+        with:
+
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+
+          script: |
+            cd /opt/gastro-api
+
+            git pull origin main
+
+            docker compose build
+
+            docker compose up -d
+```
+
+Es wird **keine** Docker‑Registry benötigt, da das Projekt direkt auf dem Server gebaut wird.
+
+---
+
+### Anwendung aktualisieren
+
+Ein einfacher `git push` genügt, um die neueste Version bereitzustellen:
+
+```bash
+git add .
+git commit -m "Neues Feature"
+git push origin main
+```
+
+GitHub Actions führt dann automatisch folgende Schritte aus:
+
+1. Verbindung zum Server herstellen
+2. Neuesten Quellcode herunterladen
+3. Geänderte Images neu bauen
+4. Container neustarten
+
+---
+
+### Logs anzeigen
+
+Anwendungslogs:
+
+```bash
+docker compose logs -f api
+```
+
+Caddy‑Logs:
+
+```bash
+docker compose logs -f caddy
+```
+
+PostgreSQL‑Logs:
+
+```bash
+docker compose logs -f postgres
+```
+
+---
+
+### Container manuell aktualisieren
+
+Falls ein manuelles Update nötig ist:
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+---
+
+### Datenbank – Backup & Restore
+
+Backup erstellen:
+
+```bash
+docker exec gastro-postgres \
+    pg_dump -U postgres gastro_menu > backup.sql
+```
+
+Backup einspielen:
+
+```bash
+cat backup.sql | docker exec -i gastro-postgres \
+    psql -U postgres gastro_menu
+```
+
+---
+
+### Fehlerbehebung
+
+#### PostgreSQL‑Authentifizierung fehlgeschlagen
+
+Wenn die Anwendung nach der Wiederverwendung eines bestehenden Datenbank‑Volumes keine Verbindung herstellen kann, muss das in PostgreSQL gespeicherte Passwort mit dem in der Connection‑String übereinstimmen.
+
+Abhilfe:
+
+```sql
+ALTER USER postgres PASSWORD 'postgres';
+```
+
+Anschließend die API neu starten:
+
+```bash
+docker compose restart api
+```
+
 ---
 
 ## 📄 Lizenz
 
 MIT
 ```
-
----
