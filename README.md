@@ -190,6 +190,8 @@ In Docker können diese Werte über die `environment`-Sektion in der `docker-com
 
 !!!  Wenn die Anwendung keine Verbindung zur Datenbank herstellen kann, 
      muss man ein Benutzerpasswort in der Datenbank festlegen. Z.b.: ALTER USER postgres PASSWORD 'postgres';
+
+Test
 ---
 
 ## 📄 Lizenz
