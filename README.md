@@ -187,6 +187,9 @@ Die wichtigsten Einstellungen können über Umgebungsvariablen oder `appsettings
 
 In Docker können diese Werte über die `environment`-Sektion in der `docker-compose.yml` überschrieben werden.
 
+
+!!!  Wenn die Anwendung keine Verbindung zur Datenbank herstellen kann, 
+     muss man ein Benutzerpasswort in der Datenbank festlegen. Z.b.: ALTER USER postgres PASSWORD 'postgres';
 ---
 
 ## 📄 Lizenz
