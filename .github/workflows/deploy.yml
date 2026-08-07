@@ -1,35 +1,64 @@
 name: Deploy
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Build"]
+    branches: [main]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (production/stage/dev)'
+        required: true
+        default: 'production'
+      version:
+        description: 'Docker image tag (commit sha)'
+        required: false
+        default: 'latest'
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'production' }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    strategy:
+      matrix:
+        include:
+          - server: production
+            host: ${{ secrets.PROD_SERVER_IP }}
+            user: deploy
+            key: ${{ secrets.PROD_SSH_KEY }}
+          - server: stage
+            host: ${{ secrets.STAGE_SERVER_IP }}
+            user: deploy
+            key: ${{ secrets.STAGE_SSH_KEY }}
     steps:
+      - uses: actions/checkout@v4
 
-      - name: Deploy
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Set version
+        id: vars
+        run: |
+          if [ "${{ github.event.inputs.version }}" != "" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
 
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-
+          host: ${{ matrix.host }}
+          username: ${{ matrix.user }}
+          key: ${{ matrix.key }}
           script: |
-            set -e
-
             cd /opt/gastro-api
-
-            git fetch origin
-
-            git reset --hard origin/main
-
-            docker compose up -d --build
-
-            docker image prune -f
-
-            docker compose ps
+            # Обновляем docker-compose.yml и Caddyfile из репозитория (опционально)
+            git pull origin main
+            # Экспортируем версию образа
+            export VERSION=${{ steps.vars.outputs.version }}
+            docker compose pull api
+            docker compose up -d --remove-orphans
