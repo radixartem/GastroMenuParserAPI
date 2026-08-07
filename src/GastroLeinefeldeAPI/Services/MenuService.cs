@@ -1,4 +1,5 @@
 using GastroLeinefeldeAPI.Models;
+using Prometheus; // <-- Добавлен using для метрик
 
 namespace GastroLeinefeldeAPI.Services;
 
@@ -8,6 +9,17 @@ public class MenuService : IMenuService
     private readonly IWebsiteClient _websiteClient;
     private readonly IMenuParser _parser;
     private readonly ILogger<MenuService> _logger;
+
+    // Метрики Prometheus
+    private static readonly Counter ImportedMealsTotal = Metrics
+        .CreateCounter("gastro_imported_meals_total", "Total number of meals processed during import",
+            new CounterConfiguration { LabelNames = new[] { "type" } }); // type: new, updated, error
+
+    private static readonly Counter ImportErrorsTotal = Metrics
+        .CreateCounter("gastro_import_errors_total", "Total number of import errors");
+
+    private static readonly Gauge LastImportTimestamp = Metrics
+        .CreateGauge("gastro_last_import_timestamp", "Timestamp of the last successful import");
 
     public MenuService(
         IMealRepository repository,
@@ -52,6 +64,7 @@ public class MenuService : IMenuService
                     meal.Source = url;
                     await _repository.AddAsync(meal);
                     result.New++;
+                    ImportedMealsTotal.WithLabels("new").Inc();
                 }
                 else if (HasMealChanged(existing, meal))
                 {
@@ -66,12 +79,21 @@ public class MenuService : IMenuService
                     
                     await _repository.UpdateAsync(existing);
                     result.Updated++;
+                    ImportedMealsTotal.WithLabels("updated").Inc();
                 }
+                // else – unchanged, ничего не делаем
             }
             
             // 4. Alte Gerichte deaktivieren (nach 7 Tagen)
             var threshold = DateTime.UtcNow.AddDays(-7);
-            await _repository.DeactivateOldMealsAsync(threshold);
+            var deactivated = await _repository.DeactivateOldMealsAsync(threshold);
+            if (deactivated > 0)
+            {
+                _logger.LogInformation("{Count} alte Gerichte deaktiviert", deactivated);
+            }
+            
+            // Обновляем метрику времени последнего успешного импорта
+            LastImportTimestamp.Set(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             
             _logger.LogInformation("Import abgeschlossen: {New} neu, {Updated} aktualisiert", 
                 result.New, result.Updated);
@@ -82,7 +104,9 @@ public class MenuService : IMenuService
         {
             _logger.LogError(ex, "Fehler beim Import von {Url}", url);
             result.Errors.Add(ex.Message);
-            throw;
+            ImportErrorsTotal.Inc();
+            // Можно также увеличить счетчик ошибок по типу
+            throw; // сохраняем поведение – пробрасываем исключение
         }
     }
 

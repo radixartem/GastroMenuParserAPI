@@ -1,0 +1,36 @@
+hcloud_token   = "your_token"
+location       = "nbg1"
+ssh_key_name   = "main"
+project_name   = "gastro"
+environment    = "production"
+
+servers = {
+  production = {
+    server_type    = "cpx21"
+    image          = "ubuntu-24.04"
+    attach_volume  = true
+    prevent_destroy = true
+  }
+  stage = {
+    server_type    = "cpx11"
+    image          = "ubuntu-24.04"
+    attach_volume  = false
+    prevent_destroy = false
+  }
+}
+
+# Using an existing firewall
+firewall_id = 123456   # replace with real ID
+
+# We don't create a network (not needed for one server)
+create_network = false
+
+# Creating a volume for PostgreSQL
+create_volume   = true
+volume_name     = "postgres-data-prod"
+volume_size_gb  = 20
+
+deploy_user = "deploy"
+github_user = "your-github-username"   # optional
+ansible_repo = "https://github.com/your-org/gastro-api.git"
+ansible_branch = "main"

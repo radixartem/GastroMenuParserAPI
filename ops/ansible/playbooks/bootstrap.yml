@@ -1,0 +1,96 @@
+---
+- name: Bootstrap new server
+  hosts: all
+  become: yes
+  vars:
+    deploy_user: "{{ deploy_user | default('deploy') }}"
+    docker_version: "5:24.0.7-1~ubuntu.22.04~jammy"
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose-plugin
+          - fail2ban
+          - ufw
+          - unattended-upgrades
+          - curl
+          - wget
+          - gnupg
+        state: present
+
+    - name: Create deploy user
+      user:
+        name: "{{ deploy_user }}"
+        groups: docker
+        append: yes
+        shell: /bin/bash
+        create_home: yes
+
+    - name: Enable Docker service
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Configure UFW
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - 22
+        - 80
+        - 443
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+
+    - name: Enable unattended upgrades
+      lineinfile:
+        path: /etc/apt/apt.conf.d/20auto-upgrades
+        regexp: '^APT::Periodic::Update-Package-Lists'
+        line: 'APT::Periodic::Update-Package-Lists "1";'
+      notify: restart unattended-upgrades
+
+    - name: Configure fail2ban
+      copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          [sshd]
+          enabled = true
+          port    = ssh
+          filter  = sshd
+          logpath = /var/log/auth.log
+          maxretry = 3
+          bantime = 3600
+      notify: restart fail2ban
+
+    - name: Create application directory
+      file:
+        path: /opt/gastro-api
+        state: directory
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: 0755
+
+    - name: Mount volume if exists (optional)
+      include_tasks: mount-volume.yml
+      when: volume_device is defined
+
+  handlers:
+    - name: restart fail2ban
+      systemd:
+        name: fail2ban
+        state: restarted
+    - name: restart unattended-upgrades
+      systemd:
+        name: unattended-upgrades
+        state: restarted

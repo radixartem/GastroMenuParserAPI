@@ -480,3 +480,8 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+
+# Ansible
+**/inventory/hosts
+**/inventory/group_vars/

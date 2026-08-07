@@ -1,0 +1,29 @@
+---
+- name: Mount volume for PostgreSQL
+  block:
+    - name: Check if volume device exists
+      stat:
+        path: "{{ volume_device }}"
+      register: vol_stat
+
+    - name: Format volume if not formatted
+      filesystem:
+        fstype: ext4
+        dev: "{{ volume_device }}"
+      when: vol_stat.stat.exists
+
+    - name: Create mount point
+      file:
+        path: /var/lib/postgresql
+        state: directory
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: 0755
+
+    - name: Mount volume
+      mount:
+        path: /var/lib/postgresql
+        src: "{{ volume_device }}"
+        fstype: ext4
+        opts: defaults,noatime
+        state: mounted
